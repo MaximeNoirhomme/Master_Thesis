@@ -16,7 +16,7 @@ import dataHandler as bh
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
 
 class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when checking target"
-    def __init__(self, nb_classes, dartDataHandler, nb_epoch, l0, gamma, testing=False, with_kronecker=True):
+    def __init__(self, nb_classes, dartDataHandler, nb_epoch, l0, gamma, alpha, testing=False, with_kronecker=True):
         '''
             Constructor of MyDartModel
             Parameters:
@@ -30,7 +30,6 @@ class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when
             Notice that the constant lambda of the reversal gradient is equalled to l0 * (2/(1  - exp(-gamma * q)) - 1 ) where q = i * (1 / nb_epoch)
             where i is the number of the current epoch.
         '''
-        
         
         self.nb_classes = nb_classes
         self.dartDataHandler = dartDataHandler
@@ -46,25 +45,9 @@ class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when
         self.l0 = l0
         self.gamma = gamma
         self.with_kronecker = with_kronecker
-
+        self.alpha = alpha
         # Get model.
         self.model = self.get_model(testing=testing)
-
-    """def get_metrix(self, weights):
-        '''
-            Definition of custum metrix
-        '''
-        weights = tf.constant(weights, dtype=tf.float32)
-        def c_w_acc(y_true, y_pred):
-            true_label_index = K.argmax(y_true, axis=-1)
-            weight = tf.gather(weights, true_label_index)
-
-            return weight*K.cast(K.equal(true_label_index,
-                            K.argmax(y_pred, axis=-1)),
-                    K.floatx())
-
-        return c_w_acc
-    """
 
     def weighted_loss(self, y_true, y_pred, weights):# https://gist.github.com/wassname/ce364fddfc8a025bfab4348cf5de852d
         '''
@@ -79,7 +62,7 @@ class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when
         loss = -K.sum(loss, -1)
         return loss
       
-    def get_loss_label(self, target_domain, weights):
+    def get_loss_label(self, target_domain, weights, alpha):
         '''
             Define loss of the label classifier. If the target_domain is source, then
             the loss is the weighted cross-entropy, otherwise it is weighted entropy.
@@ -96,9 +79,12 @@ class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when
 
             
             true_f = tf.reshape(self.weighted_loss(target_label, output_label, weights), [-1, 1])
-            false_f = 0.6*tf.reshape(self.weighted_loss(output_label, output_label, weights), [-1, 1])
-
-            loss = tf.where(cond, true_f, false_f)
+            false_f = alpha*tf.reshape(self.weighted_loss(output_label, output_label, weights), [-1, 1])
+            if alpha != 0:
+                loss = tf.where(cond, true_f, false_f)
+            else:
+                print("alpha == 0")
+                loss = tf.where(cond, true_f, true_f)
             #w = tf.where(cond, weight_source, weight_source)
 
             return loss
@@ -160,26 +146,26 @@ class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when
         else:
             kpl = output_extractor
         
-        fr = GradientReversal(self.l0, self.gamma)(kpl)
+        fr = GradientReversal(self.l0, self.gamma, name='gradient_reversal_1')(kpl)
 
         domain_classifier = self.domain_classifier_submodel(fr)
         if testing:
             self.model = Model([input_extractor], [label_classifier, domain_classifier]) #
         else:
-            self.model = Model([input_extractor, label_input, domain_input], [label_classifier, domain_classifier])
+            self.model = Model([input_extractor, label_input, domain_input], [label_classifier, domain_classifier]) # 
 
         weights = self.dartDataHandler.get_balanced_weights(0)
         
         losses = {
-            'lab_class':self.get_loss_label(domain_input, weights),
+            'lab_class':self.get_loss_label(domain_input, weights, self.alpha),
             'dom_class':self.get_loss_domain()
         }
 
         self.model.compile(optimizer='adam', loss=losses, metrics=['accuracy']) #, self.get_metrix(weights) 
-        '''if testing:
-            plot_model(self.model, to_file='test_model_testing4.png')
+        if testing:
+            plot_model(self.model, to_file='test_model_testing5.png')
         else:
-            plot_model(self.model, to_file='test_model4.png')'''
+            plot_model(self.model, to_file='test_model5.png')
 
         return self.model
 
@@ -278,14 +264,20 @@ class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when
 
     def confusion_matrix(self, data_handler=None, path_matrix=None):
         '''
-            Compute the confusion matrix.
+            Compute the confusion matrixes for both label and domain classifier.
             Parameters:
                 - data_handler: DartDataHandler, datahandler used for having testing data (if set to None, the dataHandler of this classe
                 is used instead).
                 - path_matrix: String, path to save the confusion matrix (if set to None, the confusion matrix is not saved)
+
+            Return:
+                - A tuple of numpy array of 2 dimensions, confusion matrixes for both label and domain classifier.
+            
         '''
         data_handler = data_handler if data_handler != None else self.dartDataHandler
-        for test_csv_path in data_handler.test_csv_paths:
+        label_conf_matrixes = []
+        domain_conf_matrixes = []
+        for test_csv_path, is_source in zip(data_handler.test_csv_paths, data_handler.is_sources):
             test_datagen = ImageDataGenerator(rescale=1./255)
 
             print(test_csv_path)
@@ -295,24 +287,39 @@ class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when
                         x_col="img_path",
                         y_col="label",
                         class_mode="categorical",
-                        target_size=(224, 224),
+                        target_size=(self.dartDataHandler.width, self.dartDataHandler.height),
                         batch_size=1,
-                        shuffle=False)
-            
+                        shuffle=False,
+                        color_mode=self.dartDataHandler.color_mode)
+                        
             Y_pred = self.model.predict_generator(gen, mu.get_size_csv(test_csv_path) - 1)            
-            Y_pred = Y_pred[0]
-            y_pred = np.argmax(Y_pred, axis=1)
-            
-            score_macro = f1_score(gen.classes, y_pred, average='macro')
-            score_micro = f1_score(gen.classes, y_pred, average='micro')
-            print((score_macro, score_micro))
-            
-            conf_matrix = confusion_matrix(gen.classes, y_pred)
-            print(conf_matrix)	
-            if path_matrix != None:
-                np.save(path_matrix, conf_matrix)
+            label_pred, dom_pred = Y_pred[0], Y_pred[1]
+            label_pred, dom_pred = np.argmax(label_pred, axis=1), np.around(dom_pred)
 
-        return conf_matrix
+            score_macro = f1_score(gen.classes, label_pred, average='macro')
+            score_micro = f1_score(gen.classes, label_pred, average='micro')
+            print('label_pred = ', (score_macro, score_micro))
+
+            dom_classes = np.zeros((len(gen.classes), 1)) if is_source else np.ones((len(gen.classes), 1))
+            score_macro = f1_score(dom_classes, dom_pred, average='macro')
+            score_micro = f1_score(dom_classes, dom_pred, average='micro')
+            print('domain_pred = ', (score_macro, score_micro))
+
+            label_conf_matrix = confusion_matrix(gen.classes, label_pred)
+            domain_conf_matrix = confusion_matrix(dom_classes, dom_pred)
+
+            print(label_conf_matrix)
+            print('................')
+            print(domain_conf_matrix)
+
+            if path_matrix != None:
+                np.save(path_matrix, label_conf_matrix)
+                np.save(path_matrix, domain_conf_matrix)
+
+            label_conf_matrixes.append(label_conf_matrix)
+            domain_conf_matrixes.append(domain_conf_matrix)
+
+        return label_conf_matrixes, domain_conf_matrixes
 
     def save(self, path_weight, path_model):
         '''
@@ -337,21 +344,28 @@ class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when
     def get_classifier(self):
         exit()
 
+# TODO: when the usefull parameters for dart training/testing will be known, put this in main.py
+
 #train_csv = ['dataset_csv_path/0&0s7', 'dataset_csv_path/0&1s7p0.1']
-train_csv = ['dataset_csv_path/9-s7', 'dataset_csv_path/10-s7'] #'dataset_csv_path/1-s7p0.1'
+'''train_csv = ['dataset_csv_path/9-s7', 'dataset_csv_path/10-s7'] #'dataset_csv_path/1-s7p0.1'
 dartDataHandler = DartDataHandler(train_csv, [], is_sources=[True, False])
-mdm = MyDartModel(10, dartDataHandler, 25, 1, 10, with_kronecker=False)
-mdm.train(checkpoint_path = 'Checkpoints/Dart_mnist_2', path_logger = 'csvLogger/Dart_mnist_2.csv')
-mdm.save('weights/Dart_mnist_2', 'models/Dart_mnist_2')
+mdm = MyDartModel(10, dartDataHandler, 25, 2, 10, alpha=0.2, with_kronecker=False)
+mdm.train(checkpoint_path = 'Checkpoints/Dart_mnist_6', path_logger = 'csvLogger/Dart_mnist_6.csv')
+mdm.save('weights/Dart_mnist_6', 'models/Dart_mnist_6')
+'''
+'''mdm = MyDartModel(10, dartDataHandler, 80, 2, 10, alpha=0.0, with_kronecker=False)
+mdm.train(checkpoint_path = 'Checkpoints/Dart_mnist_4', path_logger = 'csvLogger/Dart_mnist_4.csv')
+mdm.save('weights/Dart_mnist_4', 'models/Dart_mnist_4')'''
 
+train_csv = ['dataset_csv_path/9-s7', 'dataset_csv_path/10-s7']
+dartDataHandler = DartDataHandler(train_csv, ['dataset_csv_path/10-s7', 'dataset_csv_path/9-s7'], is_sources=[False, True]) #'dataset_csv_path/7-s7' #'dataset_csv_path/0-s7',
 
-'''train_csv = ['dataset_csv_path/0-s7', 'dataset_csv_path/1-s7']
-dartDataHandler = DartDataHandler(train_csv, [ 'dataset_csv_path/7-s7'], is_sources=[True, False]) #'dataset_csv_path/7-s7' #'dataset_csv_path/0-s7',
-
-myDartModel = MyDartModel(25, dartDataHandler, 25, 2, 10, with_kronecker=False,testing=True)
-myDartModel.load_weights('Checkpoints/Dart_google_11')#'weights/Dart_la_muse_6')weights/Dart_la_muse_10
-conf_matrix = myDartModel.confusion_matrix()
+myDartModel = MyDartModel(10, dartDataHandler, 25, 2, 10, alpha=0.6, with_kronecker=False,testing=True)
+myDartModel.load_weights('weights/Dart_mnist_6')#'weights/Dart_la_muse_6')weights/Dart_la_muse_10
+conf_matrixes = myDartModel.confusion_matrix()
 
 from plot import *
-err = compute_error_per_label(np.array(dartDataHandler.get_labels()),conf_matrix)'''
+for label_conf_matrix, domain_conf_matrix in zip(*conf_matrixes):
+    err = compute_error_per_label(np.array(dartDataHandler.get_labels()), label_conf_matrix)
+    err = compute_error_per_label(np.array(['0','1']), domain_conf_matrix)
 

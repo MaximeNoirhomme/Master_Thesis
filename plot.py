@@ -17,10 +17,8 @@ def compute_error_per_label(labels, confusion_matrix, nb_label_err=2, mapping=No
         if nb_sample == 0:
             continue
         nb_samples.append(nb_sample)
-        # acc = diagonal element / all the element
-        print(nb_sample)
-        print(row[i])
         
+        # acc = diagonal element / all the element       
         acc = row[i] / nb_sample
         
         # Now search which label the model predict the most instead of the diagonal element.
@@ -113,10 +111,11 @@ def plot_cmp_img(global_title, imgs, titles, output_path=None):
 
 def plot_curves_from_csv(csv_path, attribute_names, curve_names):
     nb_subplots = len(attribute_names)
-    
+    print(nb_subplots)
     if nb_subplots == 1:
+        print("there")
         fig = plt.figure()
-        subplots = [fig.add_subplot()] 
+        subplots = [fig.add_subplot(1,1,1)] 
     elif nb_subplots == 2:
         fig = plt.figure()
         subplots = [fig.add_subplot(2,1,1), fig.add_subplot(2,1,2)]
@@ -130,6 +129,7 @@ def plot_curves_from_csv(csv_path, attribute_names, curve_names):
         fig, subplots = plt.subplots(nrows=2, ncols=2)
         subplots = [ax for axes in subplots for ax in axes] #tuple to flatten list
 
+    print(subplots)
     [(subplot.set_xlabel('epoch'), subplot.set_ylabel('loss')) for subplot in subplots]
 
     for i in range(nb_subplots):
@@ -187,8 +187,13 @@ def table_error_per_label(labels, error_values, error_labels, total_error):
     plt.show()
 
 
+# TODO: put the following in the main in a cleaner way.
+
 # val_dom_class_acc,val_dom_class_c_w_acc,val_dom_class_loss,val_lab_class_acc,val_lab_class_c_w_acc,val_lab_class_loss,val_loss
-#plot_curves_from_csv('csvLogger/Dart_google_11.csv', [['val_dom_class_loss'],['val_lab_class_loss', 'val_loss']], [['val_dom_class_loss'],['val_lab_class_loss', 'val_loss']])
+'''csv_path = 'csvLogger/Dart_mnist_4.csv'
+plot_curves_from_csv(csv_path, [['val_dom_class_loss'],['val_lab_class_loss', 'val_loss']], [['val_dom_class_loss'],['val_lab_class_loss', 'val_loss']])
+plot_curves_from_csv(csv_path, [['val_dom_class_acc','val_lab_class_acc']], [['val_dom_class_acc','val_lab_class_acc']])
+'''
 #
 
 

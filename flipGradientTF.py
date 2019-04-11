@@ -33,7 +33,7 @@ class GradientReversal(Layer):
     def __init__(self, l0, gamma, **kwargs):
         super(GradientReversal, self).__init__(**kwargs)
         self.supports_masking = False
-        self.q = 0.1
+        self.q = 0.0
         self.l0 = l0
         self.gamma = gamma
         #self.epoch = epoch
