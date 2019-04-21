@@ -14,6 +14,7 @@ from keras.preprocessing.image import ImageDataGenerator
 import pandas as pd
 import dataHandler as bh
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
+from keras.optimizers import SGD
 
 class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when checking target"
     def __init__(self, nb_classes, dartDataHandler, nb_epoch, l0, gamma, alpha, testing=False, with_kronecker=True):
@@ -161,7 +162,7 @@ class MyDartModel: # TODO: add les losses pour ne pas avoir d'erreur:"error when
             'dom_class':self.get_loss_domain()
         }
 
-        self.model.compile(optimizer='adam', loss=losses, metrics=['accuracy']) #, self.get_metrix(weights) 
+        self.model.compile(optimizer=SGD(lr = 0.001, momentum = 0.9), loss=losses, metrics=['accuracy']) #, self.get_metrix(weights) 
         if testing:
             plot_model(self.model, to_file='test_model_testing5.png')
         else:
