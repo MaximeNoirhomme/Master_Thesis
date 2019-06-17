@@ -152,8 +152,9 @@ class MyDartModel:
 
         self.model.compile(optimizer= SGD(lr = 0.001, momentum = 0.9), loss=losses, metrics=metric) #, self.get_metrix(weights) 
         
-        '''if testing:
-            plot_model(self.model, to_file='sans_Dart_2_testing5.png')
+        '''
+        if testing:
+            plot_model(self.model, to_file='test_model_testing5.png')
         else:
             plot_model(self.model, to_file='sans_Dart_2.png')'''
 
