@@ -36,10 +36,12 @@ class GradientReversal(Layer):
         self.q = 0.0
         self.l0 = l0
         self.gamma = gamma
-        #self.epoch = epoch
-        self.hp_lambda = self._compute_lambda() #hp_lambda
-        print("q = ", self.q)
-        print("hp_lambda = ", self.hp_lambda)
+        self.hp_lambda = tf.Variable(self._compute_lambda(), "hp_lambda") #hp_lambda
+        self.k = 0
+        self.j = 0
+        self.zero = False
+        self.it = 0
+        self.first = True
 
     def build(self, input_shape):
         self.trainable_weights = []
@@ -56,11 +58,32 @@ class GradientReversal(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
     def update_lambda(self, incr):
+        self.it += 1
         self.q += incr
-        self.hp_lambda = self._compute_lambda()
-        print("q = ", self.q)
-        print("hp_lambda = ", self.hp_lambda)
+        hp_lambda = self._compute_lambda()
+
+        K.set_value(self.hp_lambda, 0)
+        if self.k % 500 == 0:
+            print("hp_lambda = ", hp_lambda)
+
+        self.k += 1
+        '''if self.zero:
+            K.set_value(self.hp_lambda, 0.0)
+        else:
+            K.set_value(self.hp_lambda, hp_lambda)
+        self.k += 1
+        if self.k % 500 == 0:
+            print("hp_lambda = ", hp_lambda)
+
+        self.j+=1'''
+        '''if self.it == 657:
+            j = 0
+        if self.j == 5: #and self.it >= 657: # wait 5 epochs.
+            self.j = 0
+            self.zero = not self.zero
+            if self.first:
+                self.first = False
+                print('\n INV :')'''
 
     def _compute_lambda(self):
-        #return self.l0 * (2 / (1 + exp(- self.gamma * 1)) - 1)
         return self.l0 * (2 / (1 + exp(- self.gamma * self.q)) - 1)

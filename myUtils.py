@@ -13,6 +13,11 @@ import matplotlib.pyplot as plt
 import csv
 import shutil 
 import math 
+from matplotlib import offsetbox
+import seaborn as sns
+import pickle
+
+sns.set()
 
 def create_folder_if_not_exist(folder_name):
     '''
@@ -42,7 +47,6 @@ def copyWithSubprocess(source, dest):
     elif sys.platform.startswith("win"): cmd=['xcopy', source, dest, '/K/O/X']
 
     pro = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    #os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
     proc_pid = pro.pid
     try:
         pro.wait(timeout=0.5)
@@ -62,9 +66,7 @@ def check_dataset(path):
                 img_.verify() # verify that it is, in fact an image
                 img_ = Image.open(path + '/' + label + '/' + img) # open the image file
                 img_.load()
-                #load_img(path + '/' + label + '/' + img)
             except (IOError, SyntaxError) as e:
-                #os.remove(path + '/' + label + '/' + img)
                 print('Bad file:', path + '/' + label + '/' + img) # print out the names of corrupt files
             except (IOError) as e:
                 print('truncatate file:', path + '/' + label + '/' + img)
@@ -92,9 +94,7 @@ def create_img_w_rdm_styles(path_input, path_output, path_models, path_hwalsukle
     model_str = '/' + model_name + '.ckpt'
 
     cmd = 'python ' + path_hwalsuklee + '/run_test.py --content_folder ' + path_input + ' --style_model ' + path_models + model_str + ' --folder_output ' + path_output + ' --style ' + model_name + ' --random ' + str(prop_split) + ' --seed ' + str(seed) 
-    print(cmd)
     subprocess.call(cmd.split())
-    #subprocess.run(cmd)
 
 def value2key(my_map, value):
     '''
@@ -117,7 +117,6 @@ def get_label_from_csv(prev_labels, csv_path):
     mapping = {}
     nb_labels = len(prev_labels)
     j = 0
-    print("hi")
     with open(csv_path) as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
@@ -132,14 +131,16 @@ def get_label_from_csv(prev_labels, csv_path):
                     mapping[mimo_code] = instrument_names[i].replace('u\'', '\'').replace(',','').replace('[','').replace('_',' ').replace('\'', '').replace(']','')
                     j += 1
     
-    print(mapping)
     return mapping
 
 def reverse_mapping(mapping):
     return {v:k for k, v in mapping.items()}
 
-# TMP TODO: faudra vraiment changer cette fonction ! (celà ne m'appartient pas)
 def show_image(image, grayscale = False, ax=None, title='', output='visu'):
+    '''
+        This function does no belong to me, see 
+        https://github.com/paintception/Deep-Transfer-Learning-for-Art-Classification-Problems/blob/master/saliency_maps_activations/utils.py
+    '''
     if ax is None:
         plt.figure()
     plt.axis('off')
@@ -152,20 +153,12 @@ def show_image(image, grayscale = False, ax=None, title='', output='visu'):
         vmin = np.min(image)
 
         plt.imsave(output, image, vmin=vmin, vmax=vmax)
-        '''plt.imshow(image, vmin=vmin, vmax=vmax)
-        plt.title(title)
-    	
-        plt.show()
-        '''
+
     else:
         image = image + 127.5
         image = image.astype('uint8')
         
         plt.imsave(output, image)
-        '''plt.imshow(image)
-        plt.title(title)
-    
-        plt.show()'''
 
 def crop_images(folder_path, prop_left = None, prop_right = None, prop_up = None, prop_down = None):
     img_names = os.listdir(folder_path)
@@ -260,17 +253,117 @@ def compute_normalized_entropy(prob):
     norm_const = math.log2(len(prob))
 
     value = sum(prob * np.log2(prob))
-    print(value)
 
-    return - value / norm_const #np.array(list(map(math.log2, prob)))
+    return - value / norm_const
 
-#mergefolders('D:/Users/Noirh/Documents/TFE/croped_images/t', 'D:/Users/Noirh/Documents/TFE/croped_images/t2')
+def iou_computation(bb1, bb2):
+    x_dif = abs(bb1[0] - bb2[0])
+    y_dif = abs(bb1[1] - bb2[1])
 
-'''for label in os.listdir('D:/Users/Noirh/Documents/TFE/croped_images/images'):
-    mergefolders('D:/Users/Noirh\Documents/TFE/TESTCROP/7/test/' + label, 'D:/Users/Noirh/Documents/TFE/croped_images/images/' + label)
-    mergefolders('D:/Users/Noirh\Documents/TFE/TESTCROP/7/validation/' + label, 'D:/Users/Noirh/Documents/TFE/croped_images/images/' + label)'''
+    w_inter = max([(bb1[2] + bb2[2]) / 2 - x_dif, 0])
+    h_inter = max([(bb1[3] + bb2[3]) / 2 - y_dif, 0])
+    
+    area_inter = w_inter * h_inter
 
-#print(compute_normalized_entropy(np.array([0.5,0.4,0.1])))
+    area_union = bb1[2] * bb1[3] + bb2[2] * bb2[3] - area_inter
 
+    iou = area_inter / area_union
 
+    return iou
 
+def bb_13_to_2(path_input, path_output):
+    '''
+        Go to yolo labels with 13 labels to 2 (label 7 and other)
+    '''
+    import shutil
+    files = set(os.listdir(path_input))
+    first = True
+    np_paths = []
+    img_paths = []
+    ze = 0
+    un = 0  
+    for f in files:
+        name, ext = os.path.splitext(path_input + '/' + f)
+
+        if ext == '.png':
+            h = 1
+            shutil.copyfile(name+ext, path_output + '/' + f)
+        else:
+            array = np.load(name + '.npy')
+            prob = np.reshape(array[11*11*2*4+11*11*2:], (11,11,13))
+            new_prob = np.zeros((11,11,2))
+            for i in range(11):
+                for j in range(11):
+                    if np.sum(prob[i][j]) == 0:
+                        continue
+                    else:
+                        prob_arg = np.argmax(prob[i][j], axis=-1)
+                        
+                        if prob_arg == 7:
+                            ze += 1
+                            new_prob[i][j][0] = 1
+                        else:
+                            un +=1
+                            new_prob[i][j][1] = 1
+
+            new_prob = np.reshape(new_prob, (11*11*2))
+            new_array = np.concatenate([array[:11*11*2*4+11*11*2], new_prob])
+            np.save(path_output + '/' + f,new_array)
+
+    data_to_write = {
+        'img_path': img_paths,
+        'label': np_paths
+    }
+
+    df = pd.DataFrame(data=data_to_write)
+    df.to_csv('dataset_csv_path/yolo4.csv', mode='a')
+
+def plot_embedding(X, nb_images, name_imgs, title=None, img_dic=None, dic_name=None):
+    '''
+        This function does not belong to me: https://www.analyticsvidhya.com/blog/2017/01/t-sne-implementation-r-python/
+    '''
+    plot_wout_dic = img_dic == None
+    if plot_wout_dic:
+        img_dic = {}
+        new_x = None 
+    else:
+        new_x = []
+
+    x_min, x_max = np.min(X, 0), np.max(X, 0)
+    X = (X - x_min) / (x_max - x_min)     
+    plt.figure()
+    ax = plt.subplot(111)
+    
+    if hasattr(offsetbox, 'AnnotationBbox'):
+        ## only print thumbnails with matplotlib > 1.0
+        shown_images = np.array([[1., 1.]])  # just something big
+        for i in range(nb_images):
+            my_img = load_img(name_imgs[i], target_size=(24,24))
+
+            if plot_wout_dic:
+                img_dic[name_imgs[i]] = X[i]
+
+                imagebox = offsetbox.AnnotationBbox(
+                    offsetbox.OffsetImage(my_img),
+                    X[i])
+            
+            else:
+                x_dic = img_dic[name_imgs[i]]
+                new_x.append(x_dic)
+                imagebox = offsetbox.AnnotationBbox(
+                    offsetbox.OffsetImage(my_img),
+                    x_dic)
+
+            ax.add_artist(imagebox)
+            ax.set_xlabel('X1')
+            ax.set_ylabel('X2')
+    
+    if dic_name != None:
+        pickle_out = open(dic_name, 'wb')
+        pickle.dump(img_dic, pickle_out)
+    
+    plt.xticks([]), plt.yticks([])
+    if title is not None:
+        plt.title(title)
+
+    return new_x

@@ -23,7 +23,7 @@ import matplotlib.image as mpimg
 import nameHandler as nh
 from dataSplitter import *
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-MODEL_NAMES = ['la_muse', 'rain_princess', 'the_scream', 'udnie', 'wave', 'shipwreck']
+MODEL_NAMES = ['la_muse', 'rain_princess', 'the_scream', 'udnie', 'wave', 'shipwreck', 'first_mimo', 'second_mimo', 'third_mimo', 'fourth_mimo', 'first-2']
 LABEL = ['2206', '2231', '2451', '2805', '2807', '2861', '2879', '2912', '3062', '3102', '3224', '3265', '3509', '3564', '3731', '3786', '3827', '3859', '3866', '3875', '4318', '4341', '4350', '4455', '4479']
 MODEL_SEEDS = [7, 17, 27, 37, 47, 57]
 STYLE_ID = set(mu.get_stylized_id())
@@ -31,11 +31,10 @@ DATASET_NAMES = mu.get_dataset_names() #['mimo', 'google', 'other', 'style'] + M
 
 SIMPLE_TF = 0 # experience type corresponding to simple transfert learning
 DART_TF = 1 # experience type corresponding to DART transfert learning
-STYLE_FEATURES_TF = 2 # TODO
 
 MATCH_NAME_ID = 'convention_names/dataset_mapping.csv'
 DATASET_CSV_PATH = 'dataset_csv_path'
-WEIGHTS_MODEL_PATH = 'weights'
+WEIGHTS_MODEL_PATH = 'weights2'
 CHECKPOINTS_PATH = 'Checkpoints'
 LOGGER_PATH = 'csvLogger'
 MATRIX_PATH = 'conf_matrix'
@@ -104,6 +103,10 @@ def add_generic_argument(parser):
                             help='--prop XXX: give the proportion of the training MIMO dataset that has been style transfered to '
                             'train the model.')
 
+    parser.add_argument('--prop_test', nargs='+', default=['0.1'],
+                            help='--prop XXX: give the proportion of the training MIMO dataset that has been style transfered to '
+                            'train the model.')
+
     parser.add_argument('--seed', type=int, default=[7])
 
 def get_csv(args, exp_type):
@@ -125,17 +128,16 @@ def get_csv(args, exp_type):
             # Get mode list, if not set, it is a list of 0.
             modes_train = np.zeros((len(name_to_id), 1)) if args.mode == None else args.mode
             modes_test = np.zeros((len(name_to_id), 1)) if args.mode_test == None else args.mode_test
-            print(args.trainset)
             
             for train_set, mode in zip(args.trainset, modes_train):
                 id_train = name_to_id[train_set]
-                prop_train = args.prop[0] if id_train in STYLE_ID else 1
+                prop_train = args.prop[0] if id_train in STYLE_ID else '1'
 
                 csv_train_paths.append(DATASET_CSV_PATH + '/' + nh.get_name(id_train, mode, args.seed[0], prop_train)) 
 
             for test_set, mode in zip(args.testset, modes_test):
                 id_test = name_to_id[test_set]
-                prop_test = args.prop[0] if id_test in STYLE_ID else 1
+                prop_test = args.prop_test[0] if id_test in STYLE_ID else '1'
                 csv_test_paths.append(DATASET_CSV_PATH + '/' + nh.get_name(id_test, mode, args.seed[0], prop_test))
 
     return csv_train_paths, csv_test_paths
@@ -157,7 +159,7 @@ def parse_args():
     nip.add_argument('--loadmodel', nargs=1,
                                     help='--loadmodel XXX: Load a pre-trained model, '
                                     'XXX: string, relative path in the folder models \n'
-                                    'If not set, the imagenet weight is used instead.') # TODO: if one day I need to train a model from an other model => use a new caractere for the name of the model
+                                    'If not set, the imagenet weight is used instead.')
 
     nip.add_argument('--loadweights', nargs=1,
                                     help='--loadweights')
@@ -247,6 +249,10 @@ def parse_args():
                                     '\t- all: the entire network is retrained.\n'
                                     'If not set, all is set by default.')
 
+    pp.add_argument('--weights', type=str)
+
+    pp.add_argument('--matrix_name')
+
     # Create subparser for splitting data and stores the split information into csv and for style transfered images.
     dhp = subparsers.add_parser('dataHandling', help='stand for handling splitting and style transfered images')
     
@@ -302,7 +308,7 @@ def data_parser(args):
             prop_split = args.propsplit[0] if args.propsplit != None else 1
             if args.model_name == 'all':
                 for model_name, seed in zip(MODEL_NAMES, MODEL_SEEDS):
-                    folder_output = path_output + '/' + ('' if args.prefixname == None else args.prefixname) + model_name
+                    folder_output = path_output + '/' + ('' if args.prefixname == None else args.prefixname[0]) + model_name
                     mu.create_folder_if_not_exist(folder_output)
                     mu.create_img_w_rdm_styles(path_input, folder_output, path_models, path_hwalsuklee, prop_split, model_name=model_name, seed=seed)
             else:
@@ -341,9 +347,14 @@ def data_parser(args):
 def plot_parser(args):
     if args.exp_type == 'classical_exp':
         csv_paths = get_csv(args, SIMPLE_TF)
-        matrix_name = nh.get_classical_matrix(*csv_paths, args.arch, args.seed[0]) + '.npy'
-        matrix = np.load(MATRIX_PATH + '/' + matrix_name)
+        if args.matrix_name == None:
+            matrix_name = nh.get_classical_matrix(*csv_paths, args.arch, args.seed[0]) + '.npy'
+        else:
+            matrix_name = args.matrix_name
+
+        seed = args.seed[0]
         if args.plot_mode == 'conf_matrix':
+            matrix = np.load(MATRIX_PATH + '/' + matrix_name)
             print(matrix)
         elif args.plot_mode == 'compute_conf_matrix':
             # Get architecture model
@@ -353,18 +364,24 @@ def plot_parser(args):
             csv_train_paths, csv_test_paths = get_csv(args, SIMPLE_TF)
             
             # Init the data handler.
-            data_handler = DataHandler(csv_train_paths, csv_test_paths, **args_dataset)
+            data_handler = DataHandler(csv_train_paths, csv_test_paths)
             trainer_mode = mrt.LAST_LAYER_TRAIN_MODE if args.trainermode == 'last' else mrt.FULL_TRAIN_MODE
             
-            model_name = nh.get_classical_model(csv_train_paths, args.arch, seed)
-            model_retrainer = ModelReTrainer(model, trainer_mode, data_handler, already_weighted=already_weighted, path_weight=path_weight,
-                 seed=seed)
+            if args.weights == None:
+                model_name = nh.get_classical_model(csv_train_paths, args.arch, seed)
+            else:
+                model_name = args.weights
+
+            path_weight = WEIGHTS_MODEL_PATH + '/' + model_name
+            model_retrainer = ModelReTrainer(model, trainer_mode, data_handler, already_weighted=False, path_weight=path_weight,
+                 seed=seed, trainoff=True)
 
             model_retrainer.confusion_matrix(path_matrix=MATRIX_PATH + '/' + matrix_name)
         else:
             testing_dh = DataHandler(*csv_paths)
-            label = np.array(testing_dh.get_labels(1))
+            label = np.array(testing_dh.get_labels())
             mapping = mu.get_label_from_csv(set(label), 'lookup_data.csv')
+            matrix = np.load(MATRIX_PATH + '/' + matrix_name)
             err = plot.compute_error_per_label(label, matrix, mapping=mapping)
             
             if args.plot_mode == 'table_error_label':
@@ -390,7 +407,6 @@ def visu_parser(args):
         folder = args.folder[0]
         label = args.label[0]
         for img in os.listdir(folder + '/' + label):
-            print(well_predicted)
 
             confidence_lvl = []
             error_label = []
@@ -417,9 +433,10 @@ def visu_parser(args):
                         error_label.append(LABEL[predicted_label_index])
                         prob_true_label.append(prob[LABEL.index(label)])
 
-            if to_visualize:
-                original = load_img(folder + '/' + label + '/' + img)
+            if True:
+                original = load_img(folder + '/' + label + '/' + img, target_size=(224,224))
                 imgs = [mpimg.imread(folder + '/' + label + '/' + img)]
+
                 for mrt, arch_name in zip(modelRetrainers, args.model_archs):
                     imgs.append(mrt.visualise_network(folder + '/' + label + '/' + img, save=False, im = original, arch_type=arch_name))
 
@@ -433,12 +450,13 @@ def visu_parser(args):
                 for i, (conf_lvl, err_label, prob) in enumerate(zip(confidence_lvl, error_label, prob_true_label)):
                     names[i] += ':\n a = ' + str(conf_lvl) + ', b = ' + str(err_label) + ', c = ' + str(prob)
                 
+                imgs[0] = original
                 plot.plot_cmp_img('Comparaison of what networks visualize', imgs, ['original'] + names, output_path=output_path)
 
 def classic_parser(args):     
     model = get_arch(args.arch)
 
-    test_only = False if (args.trainoff is None or args.trainoff is False) else True # TODO: voir pourquoi j'ai besoin de mettre test_only à True sinon il me le met à None :/ 
+    test_only = False if (args.trainoff is None or args.trainoff is False) else True #
     checkpoint_enable = True if args.checkpointsoff is None or args.checkpointsoff is False else False 
     logger_enable = True if args.loggeroff is None or args.loggeroff is False else False
     save_model_enable = True if args.savemodeloff is None or args.savemodeloff is False else False
@@ -456,7 +474,6 @@ def classic_parser(args):
 
     # Retrain part.
     trainer_mode = mrt.LAST_LAYER_TRAIN_MODE if args.trainermode == 'last' else mrt.FULL_TRAIN_MODE
-    print(csv_train_paths, args.arch, seed)
     model_name = nh.get_classical_model(csv_train_paths, args.arch, seed)
 
     # Check if the model has been already trained
@@ -470,8 +487,7 @@ def classic_parser(args):
         already_weighted = True
         path_weight = None
 
-    print('gfdgdsd !!!!!!!!!!!!!!!!!!!! ', model_name)
-    path_save = None if checkpoint_enable else CHECKPOINTS_PATH + '/' + model_name
+    path_save = None if not checkpoint_enable else CHECKPOINTS_PATH + '/' + model_name
     path_logger = LOGGER_PATH + '/' + model_name + '.csv' if logger_enable else None
     
     model_retrainer = ModelReTrainer(model, trainer_mode, data_handler, already_weighted=already_weighted, path_weight=path_weight, path_save=path_save,
@@ -485,10 +501,8 @@ def classic_parser(args):
     
     # testing phase (computation of confusion_matrix)
     matrix_name = nh.get_classical_matrix(csv_train_paths, csv_test_paths, args.arch, seed) + '.npy'
-    model_retrainer.confusion_matrix(path_matrix=MATRIX_PATH + '/' + matrix_name)
-    
+    conf_matrix = model_retrainer.confusion_matrix(path_matrix=MATRIX_PATH + '/' + matrix_name)
+    err = plot.compute_error_per_label(LABEL, conf_matrix)
 if __name__ == "__main__":
-    print(keras.__version__)
-    print(tf.__version__)
     # Parse input
     parse_args()

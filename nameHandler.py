@@ -1,21 +1,22 @@
 import csv
+import numpy as np
 
 def get_name(id_set, mode, seed, prop='1'):
     '''
         Infers the classical name for csv file (without the extension) according to the parameter (see read me)
     '''
     
-    classical_name = id_set + '-'
+    classical_name = id_set
 
     # The zero mode is the default mode.
     if mode != 0:
         classical_name += '_' + mode
 
-    classical_name += 's' + str(seed) + ('p' + str(prop) if str(prop) != '1' else '')
+    classical_name += '-s' + str(seed) + ('p' + str(prop) if str(prop) != '1' else '')
 
     return classical_name
 
-def get_classical_model(csv_paths, arch_type, seed, prop=1, weighted=True):
+def get_classical_model(csv_paths, arch_type, seed, prop='1', weighted=True):
     '''
         Infers the model of the classical model trained by using the csv_file in the csv_paths, list of strings
         and the architecture type. (see read-me)
@@ -39,17 +40,17 @@ def get_classical_model(csv_paths, arch_type, seed, prop=1, weighted=True):
         else:
             modes.append(0)
             id_train_set.append(csv_path)
-
+    
     sorted_index = np.argsort(id_train_set)
-    id_train_set = id_train_set[sorted_index]
-    modes = modes[sorted_index]
+    id_train_set = [id_train_set[index] for index in sorted_index]
+    modes = [modes[index] for index in sorted_index]
 
     classical_name += '_' + '_'.join(id_train_set) + ('' if only_zero else '&&' + '_'.join(modes))
-    classical_name += '-' + ('w' if weighted else '') + 's' + str(seed) + ('p' + str(prop) if prop != 1 else '')
+    classical_name += '-' + ('w' if weighted else '') + 's' + str(seed) + ('p' + str(prop) if str(prop) != '1' else '')
 
     return classical_name
 
-def get_classical_matrix(csv_train_paths, csv_test_paths, arch_type, seed, prop=1, weighted=True):
+def get_classical_matrix(csv_train_paths, csv_test_paths, arch_type, seed, prop='1', weighted=True):
     '''
         Infers the confusion matrix name from the csv_file in csv_train_paths and csv_test_paths, list of string
         and the architecture type. (see read-me)
@@ -89,13 +90,13 @@ def get_classical_matrix(csv_train_paths, csv_test_paths, arch_type, seed, prop=
     sorted_index_train = np.argsort(id_train_set)
     sorted_index_test = np.argsort(id_test_set)
     
-    id_train_set = id_train_set[sorted_index_train]
-    modes_train = modes_train[sorted_index_train]
-    id_test_set = id_test_set[sorted_index_test]
-    modes_test = modes_test[sorted_index_test]    
+    id_train_set = [id_train_set[index] for index in sorted_index_train]
+    modes_train = [modes_train[index] for index in sorted_index_train]
+    id_test_set = [id_test_set[index] for index in sorted_index_test]
+    modes_test = [modes_test[index] for index in sorted_index_test]    
 
-    classical_name += '_' + '_'.join(id_train_set) + '&' + '_'.join(id_test_set) + ('' if only_zero else '&&' + '_'.join(modes_train)) + ('' if only_zero else '&&&' + '_'.join(modes_test))
-    classical_name += '-' + ('w' if weighted else '') + 's' + str(seed) + ('p' + str(prop) if prop != 1 else '')
+    classical_name += '_' + '_'.join(id_train_set) + '&' + '_'.join(id_test_set) + ('' if only_zero_train else '&&' + '_'.join(modes_train)) + ('' if only_zero_test else '&&&' + '_'.join(modes_test))
+    classical_name += '-' + ('w' if weighted else '') + 's' + str(seed) + ('p' + str(prop) if str(prop) != '1' else '')
 
     return classical_name
 
@@ -115,8 +116,3 @@ def get_mapping(csv_path):
             mapping[row['name']] = row['id']
 
     return mapping
-#print(get_classical_name('vgg', ['0','1'], ['5','7','9'], ['0.1','0.6']))
-'''
-print(get_classical_model(['0_1', '0_7&&1', '0_5', '0_7', '0_1', '0_1', '0_5'], 'resnet50', 7,0.1))
-print(get_classical_matrix(['0_1', '0_7&&1', '0_5', '0_7', '0_1', '0_1', '0_5'], ['0_1', '0_7&&1', '0_5', '0_7', '0_1', '0_1', '0_5'], 'resnet50', 7,0.1))
-'''

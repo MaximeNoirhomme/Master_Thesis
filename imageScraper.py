@@ -1,11 +1,9 @@
 from dataHandler import DataHandler
-#from google_images_download import google_images_download
 import myUtils as mu
 import numpy as np
 
 class ImageScraper:
-    def __init__(self, labels, nb_images, saved=True, path = 'artistic_instrument', mapping=None):
-        print('init')
+    def __init__(self, labels, nb_images, chromedriver, saved=True, path = 'artistic_instrument', mapping=None):
         # List of labels to scrap
         self.labels = labels
         # Either a list of integer of same size of labels or an integer. If integer, the number
@@ -22,6 +20,8 @@ class ImageScraper:
         self.response = google_images_download.googleimagesdownload()
         self.path = path
         self.mapping = mapping
+		
+		self.chromedriver = chromedriver
 
     def download_image(self):
         absolute_img_paths = {}
@@ -32,9 +32,7 @@ class ImageScraper:
             if self.mapping != None:
                 label = self.mapping[label]
             path = self.path + '/' + label
-            #mu.create_folder_if_not_exist(path)
-            # 'exact_size':'224,224',
-            absolute_img_paths[label] = self.response.download({'keywords':keyword, 'limit':nb_images, 'output_directory':self.path, 'chromedriver':'D:/Users/Noirh/Documents/TFE/chromedriver.exe'})[keyword]
-            #print(absolute_img_paths)
-            #break
+
+            absolute_img_paths[label] = self.response.download({'keywords':keyword, 'limit':nb_images, 'output_directory':self.path, 'chromedriver':self.chromedriver})[keyword]
+
         return absolute_img_paths

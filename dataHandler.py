@@ -16,10 +16,12 @@ TESTING_TYPE = 1
 VALIDATION_TYPE = 2
 
 LABEL = ['2206', '2231', '2451', '2805', '2807', '2861', '2879', '2912', '3062', '3102', '3224', '3265', '3509', '3564', '3731', '3786', '3827', '3859', '3866', '3875', '4318', '4341', '4350', '4455', '4479']
-LABEL = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+#LABEL = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+#LABEL = ['2231', '2451', '2879', '3102', '3224', '3265', '3509', '3564', '3786', '3859', '3866', '4455', '4479']
+LABEL = ['3564', '0']
 LABEL = ['\'' + l + '\'' for l in LABEL]
 class DataHandler:
-    def __init__(self, train_csv_paths, test_csv_paths, batch_size = 32, mapping = None, seed = 7, width = 224, height = 224, 
+    def __init__(self, train_csv_paths, test_csv_paths, batch_size = 64, mapping = None, seed = 7, width = 224, height = 224, 
                         nb_chanels = 3):
         '''
             Constructor of DataHandler.
@@ -35,14 +37,11 @@ class DataHandler:
                 - nb_chanels: Integer, nb of chanels of the images.
         '''
 
-        print(seed)
         s(seed)        
-        
         self.width = width
         self.height = height
         self.nb_chanels = nb_chanels
         self.color_mode = 'grayscale' if nb_chanels == 1 else 'rgb'
-        print(self.color_mode)
 
         self.train_csv_paths = [path + '_train.csv' for path in train_csv_paths]
         self.test_csv_paths = [path + '_test.csv' for path in test_csv_paths]
@@ -50,7 +49,6 @@ class DataHandler:
 
         self.all_paths = [self.train_csv_paths, self.test_csv_paths, self.valid_csv_paths]
 
-        print(self.all_paths)
 
         self.batch_size = batch_size
         self.mapping = mapping
@@ -109,16 +107,16 @@ class DataHandler:
         weights = np.empty((nb_classes))
         total_size = self.get_size(data_type)
         for i, label in enumerate(self.get_labels()):
+            
             weights[i] = total_size / (self.get_size_label(data_type, label) * nb_classes) 
 
-        print(weights)
 
         return weights
 
     def get_labels(self):
         return LABEL
 
-    def get_nb_classes(self, datatype): #TODO: compute nb_classes in a dynamic way ?
+    def get_nb_classes(self, datatype):
         '''
             Return the number of classes in the dataset.
             Notice that the getter is a lazy loader.
@@ -148,7 +146,6 @@ class DataHandler:
         for i, csv_path in enumerate(self.all_paths[data_type]):
             # The data augmentation is only needed for the learning phase.
             if data_type == TRAIN_TYPE:
-                print('train')
                 datagen = ImageDataGenerator(
                                 rescale=1./255,
                                 horizontal_flip = True,
@@ -160,7 +157,7 @@ class DataHandler:
                                 fill_mode = 'nearest',
                                 zoom_range=0.25)
             else:
-                datagen = ImageDataGenerator(rescale=1./255)
+                datagen = ImageDataGenerator(rescale=1./255)#
             
             if data_type == TESTING_TYPE:
                 batch_size = 1
@@ -171,11 +168,10 @@ class DataHandler:
                 else:
                     batch_size = int(self.batch_size / len(self.all_paths[data_type]))
                     it_batch_size += batch_size
-                
+
             # Create a dataframe from csv
             df=pd.read_csv(csv_path)
 
-            print("batch_size = ", batch_size)
             # define the generator thanks to the dataframe.
             gen = datagen.flow_from_dataframe(dataframe=df,
                         directory=None,

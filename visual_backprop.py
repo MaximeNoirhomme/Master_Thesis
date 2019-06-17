@@ -36,7 +36,6 @@ class VisualBackprop(SaliencyMask):
         self.model = model
         self.model.dssqfdqs = 2
         self.model.dssqfdqs += 1 
-        print(self.model.dssqfdqs)
     def get_mask(self, input_image, max_gg=0):
         """Returns a VisualBackprop mask."""
         x_value = np.expand_dims(input_image, axis=0)
@@ -109,23 +108,7 @@ class VisualBackprop(SaliencyMask):
     def _resnet_comp(self, output):
         """Computation of mean according to kernel dimension for resnet"""
         layer = np.mean(output, axis=3, keepdims=True)
-        #return layer
         layer = layer + np.min(abs(layer))
         return layer/(np.max(layer)-np.min(layer)+1e-6)
 
 
-'''from keras.applications.resnet50 import ResNet50
-from keras.applications.vgg19 import VGG19
-from keras.preprocessing.image import load_img, img_to_array
-from plot import plot_cmp_img 
-model = ResNet50('imagenet')
-print(model.summary())
-#model = VGG19('imagenet')
-v = VisualBackprop(model, arch_type='resnet50')
-
-im = load_img('individualImage.jpg', target_size=(224,224))
-img = np.asarray(im)#img_to_array(img)
-x = np.expand_dims(img, axis=0)
-
-masks = [v.get_mask(x[0], i) for i in range(1)] 
-plot_cmp_img('a', [im] + masks, [str(i) for i in range(2)], output_path=None)'''

@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set()
 import pandas as pd
 import csv
 
@@ -32,10 +34,7 @@ def compute_error_per_label(labels, confusion_matrix, nb_label_err=2, mapping=No
 
         total_error_value.append(1 - acc)
 
-    '''np.save('figure/plot_acc/numpy/error_values_'+save_name+'.npy', error_values)
-    np.save('figure/plot_acc/numpy/error_labels_'+save_name+'.npy', error_labels)
-    np.save('figure/plot_acc/numpy/total_error_'+save_name+'.npy',total_error_value)'''
-    print(np.mean(np.array(total_error_value)))
+    print('error = ', np.mean(np.array(total_error_value)))
 
     return error_values, error_labels, total_error_value
 
@@ -109,48 +108,6 @@ def plot_cmp_img(global_title, imgs, titles, output_path=None):
     else:
         plt.savefig(output_path)
 
-def plot_curves_from_csv(csv_path, attribute_names, curve_names):
-    nb_subplots = len(attribute_names)
-    print(nb_subplots)
-    if nb_subplots == 1:
-        print("there")
-        fig = plt.figure()
-        subplots = [fig.add_subplot(1,1,1)] 
-    elif nb_subplots == 2:
-        fig = plt.figure()
-        subplots = [fig.add_subplot(2,1,1), fig.add_subplot(2,1,2)]
-    elif nb_subplots == 3:
-        fig, subplots = plt.subplots(nrows=2, ncols=2)
-        subplots = [ax for axes in subplots for ax in axes] #tuple to flatten list
-        # only need 3 plots
-        subplots[-1].set_visible(False)
-        subplots = subplots[0:3] 
-    elif nb_subplots == 4:
-        fig, subplots = plt.subplots(nrows=2, ncols=2)
-        subplots = [ax for axes in subplots for ax in axes] #tuple to flatten list
-
-    print(subplots)
-    [(subplot.set_xlabel('epoch'), subplot.set_ylabel('loss')) for subplot in subplots]
-
-    for i in range(nb_subplots):
-        curves = [[] for j in range(len(attribute_names[i]))]
-        nb_epochs = []
-        with open(csv_path) as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                nb_epochs.append(row['epoch'])
-                for j, attribute_name in enumerate(attribute_names[i]):
-                    curves[j].append(float(row[attribute_name]))
-
-        for j in range(0, len(curves)):
-            subplots[i].plot(nb_epochs, curves[j], label=curve_names[i][j])
-
-        subplots[i].legend()
-
-    fig.subplots_adjust(hspace=0.8)        
-    plt.tight_layout()
-    plt.show()
-
 def table_error_per_label(labels, error_values, error_labels, total_error):
     fig, ax = plt.subplots()
 
@@ -186,53 +143,3 @@ def table_error_per_label(labels, error_values, error_labels, total_error):
     fig.tight_layout()
     plt.show()
 
-
-# TODO: put the following in the main in a cleaner way.
-
-# val_dom_class_acc,val_dom_class_c_w_acc,val_dom_class_loss,val_lab_class_acc,val_lab_class_c_w_acc,val_lab_class_loss,val_loss
-'''csv_path = 'csvLogger/Dart_mnist_4.csv'
-plot_curves_from_csv(csv_path, [['val_dom_class_loss'],['val_lab_class_loss', 'val_loss']], [['val_dom_class_loss'],['val_lab_class_loss', 'val_loss']])
-plot_curves_from_csv(csv_path, [['val_dom_class_acc','val_lab_class_acc']], [['val_dom_class_acc','val_lab_class_acc']])
-'''
-#
-
-
-'''data = [['87.83', '87.01', '86.24', '', ''], ['17,4', '21.4', '23.8', '','24'], ['5.1','68.76','74.04','40','76.7'], ['7.68','43.21','75.76', '13.32', '79.43'], ['7.7','57.68','81.26', '36.02', '82.96'], ['12.18','47.84','78.09','27.89', '81,36'], ['11.28','39.06','79.03', '21.07', '81.67'], ['15.79','52.87','80.15', '36.21', '82.38']]
-columns = ['\'MIMO\' model', '\'MIMO + la_muse\' model', '\'MIMO + the 6 styles\' model', '\'Weighted MIMO\' model', '\'Weighted MIMO + the 6 styles\' model']
-rows = ['acc on MIMO', 'acc on google', 'acc on la_muse', 'acc on rain princess', 'acc on the scream', 'acc on udnie', 'acc on wave', 'acc on shipwrek']
-
-fig, ax = plt.subplots()
-
-# hide axes
-fig.patch.set_visible(False)
-ax.axis('off')
-ax.axis('tight')
-
-
-index = np.arange(len(columns)) + 0.3
-bar_width = 0.4
-
-# Initialize the vertical-offset for the stacked bar chart.
-y_offset = np.zeros(len(columns))
-n_rows = len(rows)
-cell_text = []
-for row in range(n_rows):
-    cell_text.append(data[row])
-
-print(cell_text)
-print(len(columns))
-print(len(rows))
-print(len(data))
-the_table = plt.table(cellText=cell_text,
-                      rowLabels=rows,
-                      colLabels=columns,
-                      colWidths=[0.2 for x in columns],
-                      loc='center',
-                      cellLoc='center',
-                      )
-the_table.auto_set_font_size(False)
-the_table.set_fontsize(10)
-the_table.scale(1,1)
-fig.tight_layout()
-plt.show()'''
-    
