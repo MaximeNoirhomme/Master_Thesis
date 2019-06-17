@@ -86,7 +86,7 @@ class MyYoloModel:
 
 
         yolo_model = Model([inp_yolo], [x])
-        yolo_model.compile(optimizer=Adam(lr=0.001, decay=0.0001), loss=self._yolo_loss(), metrics=[self.debug()]) #SGD(lr = 0.001, momentum = 0.9) Adam(lr=0.001)
+        yolo_model.compile(optimizer=Adam(lr=0.001, decay=0.0001), loss=self._yolo_loss()) #SGD(lr = 0.001, momentum = 0.9) Adam(lr=0.001)
 
         return yolo_model
     def _yolo_loss(self):
